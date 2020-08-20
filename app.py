@@ -88,7 +88,6 @@ class Show(db.Model):
 
 def format_datetime(value, format='medium'):
   date = dateutil.parser.parse(value)
-  local = 'en'
   if format == 'full':
       format="EEEE MMMM, d, y 'at' h:mma"
   elif format == 'medium':
@@ -97,7 +96,7 @@ def format_datetime(value, format='medium'):
   return babel.dates.format_datetime(date, format, locale = 'en')
 
 app.jinja_env.filters['datetime'] = format_datetime
-
+# 'Tue 05, 21, 2019 9:30PM'
 #----------------------------------------------------------------------------#
 # Controllers.
 #----------------------------------------------------------------------------#
@@ -265,7 +264,29 @@ def show_venue(venue_id):
   # }
 
   #data = list(filter(lambda d: d['id'] == venue_id, [data1, data2, data3]))[0]
+  # dict = {
+  #     "id": 2,
+  #     "artist_id": 4,
+  #     "venue_id": 1,
+  #     "start_time": "2035-04-15T20:00:00.000Z",
+  #   }
+  
   data = Venue.query.get(venue_id)
+  upcoming_shows = []
+  past_shows = []
+  for show in data.show:
+     if(datetime.fromisoformat(show.start_time[:-1]) > datetime.today()):
+       print('upcoming')
+       upcoming_shows.append(show)
+     else:
+       past_shows.append(show)
+       print('past')
+  data.upcoming_shows = upcoming_shows
+  data.past_shows = past_shows
+  for show in data.upcoming_shows:
+    show.artist_image_link = Artist.query.get(show.artist_id).image_link
+  for show in data.past_shows:
+    show.artist_image_link = Artist.query.get(show.artist_id).image_link
   return render_template('pages/show_venue.html',  venue=data)
 
 #  Create Venue
@@ -334,14 +355,21 @@ def search_artists():
   # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
   # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
   # search for "band" should return "The Wild Sax Band".
-  response={
-    "count": 1,
-    "data": [{
-      "id": 4,
-      "name": "Guns N Petals",
-      "num_upcoming_shows": 0,
-    }]
-  }
+  search = request.form.get('search_term', '')
+  result = Artist.query.filter(Artist.name.ilike('%'+search+'%')).all()
+  count = len(result)
+  if (count >= 1 ):
+    response={
+      "count": count,
+      "data": Artist.query.filter(Artist.name.ilike('%'+search+'%')).all()
+    }
+  else:
+    response={
+      "count": 0,
+      "data": [{
+        "name": "Artist not found"
+      }]
+    }
   return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
 
 @app.route('/artists/<int:artist_id>')
